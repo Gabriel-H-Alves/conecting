@@ -20,13 +20,14 @@ uniform vec3 uColor;
 uniform float uAmplitude;
 uniform float uDistance;
 uniform float uBaseY;
+uniform float uAspect;
 uniform vec2 uMouse;
 
 #define PI 3.1415926538
 
-const int u_line_count = 40;
-const float u_line_width = 7.0;
-const float u_line_blur = 10.0;
+const int u_line_count = 28;
+const float u_line_width_px = 1.8;
+const float u_line_feather_px = 1.0;
 
 float Perlin2D(vec2 P) {
     vec2 Pi = floor(P);
@@ -49,60 +50,69 @@ float Perlin2D(vec2 P) {
     return dot(grad_results, blend2.zxzx * blend2.wwyy);
 }
 
-float pixel(float count, vec2 resolution) {
-    return (1.0 / max(resolution.x, resolution.y)) * count;
-}
+float lineFn(vec2 st, float perc, vec2 mouse, float time, float amplitude, float distance, float baseY, float aspect) {
+    // Smooth natural fan opening from the left
+    float split_point = 0.04 + (perc * 0.24);
+    float amplitude_normal = smoothstep(split_point, 0.65, st.x);
+    
+    // Balanced wave amplitude — fluid organic motion without colliding with the text
+    float ampScale = aspect < 1.0 ? 0.22 : 0.32;
+    float finalAmplitude = amplitude_normal * ampScale * amplitude;
 
-float lineFn(vec2 st, float width, float perc, float offset, vec2 mouse, float time, float amplitude, float distance, float baseY) {
-    float split_offset = (perc * 0.4);
-    float split_point = 0.1 + split_offset;
+    float time_scaled = time / 9.5;
 
-    float amplitude_normal = smoothstep(split_point, 0.7, st.x);
-    float amplitude_strength = 0.45;
-    float finalAmplitude = amplitude_normal * amplitude_strength * amplitude;
-
-    float time_scaled = time / 10.0;
-    float blur = smoothstep(split_point, split_point + 0.05, st.x) * perc;
+    // Organic 3D thread phase shift (0.35) — restores fluid volumetric curves
+    // while keeping threads in a clean parallel laminar ribbon
+    float linePhase = perc * 0.32;
 
     float xnoise = mix(
-        Perlin2D(vec2(time_scaled, st.x + perc) * 2.5),
-        Perlin2D(vec2(time_scaled, st.x + time_scaled) * 3.5) / 1.5,
-        st.x * 0.3
+        Perlin2D(vec2(time_scaled, (st.x + linePhase) * 2.3)),
+        Perlin2D(vec2(time_scaled * 1.2, (st.x + time_scaled) * 2.7)) / 1.5,
+        st.x * 0.35
     );
 
-    // Fixed vertical anchor point so the ribbon remains stable in the lower screen section
-    float y = baseY + (perc - 0.5) * distance + xnoise / 2.0 * finalAmplitude;
+    // Height of the thread in the viewport
+    float y = baseY + (perc - 0.5) * distance + (xnoise * 0.5 * finalAmplitude);
 
-    float line_start = smoothstep(
-        y + (width / 2.0) + (u_line_blur * pixel(1.0, iResolution.xy) * blur),
-        y,
-        st.y
-    );
+    // Interactive mouse / touch ripple
+    vec2 currentPt = vec2(st.x, y);
+    vec2 delta = currentPt - mouse;
+    delta.x *= max(aspect, 1.0);
+    delta.y *= max(1.0 / aspect, 1.0);
+    float dist = length(delta);
 
-    float line_end = smoothstep(
-        y,
-        y - (width / 2.0) - (u_line_blur * pixel(1.0, iResolution.xy) * blur),
-        st.y
-    );
+    float interactionRadius = aspect < 1.0 ? 0.20 : 0.25;
+    if (dist < interactionRadius) {
+        float influence = smoothstep(interactionRadius, 0.0, dist);
+        float ripple = sin(dist * 26.0 - time * 6.0) * influence * 0.025;
+        y += ripple;
+    }
 
-    return clamp(
-        (line_start - line_end) * (1.0 - smoothstep(0.0, 1.0, pow(perc, 0.3))),
-        0.0,
-        1.0
-    );
+    // Razor-sharp physical pixel lines with sub-pixel feather
+    float pixelY = 1.0 / iResolution.y;
+    float halfWidth = (u_line_width_px * 0.5) * pixelY;
+    float feather = u_line_feather_px * pixelY;
+
+    float line_start = smoothstep(y + halfWidth + feather, y, st.y);
+    float line_end = smoothstep(y, y - halfWidth - feather, st.y);
+
+    float line_intensity = clamp(line_start - line_end, 0.0, 1.0);
+    float depthFade = 1.0 - smoothstep(0.0, 1.0, pow(perc, 0.35)) * 0.35;
+
+    return line_intensity * depthFade;
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 uv = fragCoord / iResolution.xy;
-    float line_width = u_line_width * pixel(1.0, iResolution.xy);
     float result = 0.0;
 
     for (int i = 0; i < u_line_count; i++) {
         float perc = float(i) / float(u_line_count);
-        result += lineFn(uv, line_width, perc, 0.0, uMouse, iTime, uAmplitude, uDistance, uBaseY);
+        result += lineFn(uv, perc, uMouse, iTime, uAmplitude, uDistance, uBaseY, uAspect);
     }
 
-    vec3 color = uColor * result;
+    // High-contrast clean white threads on deep black
+    vec3 color = uColor * clamp(result, 0.0, 1.0);
     fragColor = vec4(color, 1.0);
 }
 
@@ -123,17 +133,18 @@ interface ThreadsProps {
 export default function Threads({
   color = [1, 1, 1],
   amplitude = 1,
-  distance = 0.45,
-  baseY = 0.32, // Fixed lower position matching user screenshot
-  enableMouseInteraction = false,
+  distance = 0.26,
+  baseY = 0.26,
+  enableMouseInteraction = true,
   className = '',
 }: ThreadsProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<InstanceType<typeof Renderer> | null>(null)
   const programRef = useRef<InstanceType<typeof Program> | null>(null)
   const animationRef = useRef<number>(0)
-  const mouseRef = useRef({ x: 0.5, y: 0.5 })
-  const targetMouseRef = useRef({ x: 0.5, y: 0.5 })
+  // Default mouse off-canvas initially until interaction
+  const mouseRef = useRef({ x: -10, y: -10 })
+  const targetMouseRef = useRef({ x: -10, y: -10 })
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -163,7 +174,8 @@ export default function Threads({
         uAmplitude: { value: amplitude },
         uDistance: { value: distance },
         uBaseY: { value: baseY },
-        uMouse: { value: [0.5, 0.5] },
+        uAspect: { value: 1.0 },
+        uMouse: { value: [-10, -10] },
       },
     })
     programRef.current = program
@@ -171,52 +183,70 @@ export default function Threads({
     const mesh = new Mesh(gl, { geometry, program })
 
     function resize() {
-      if (!container || !rendererRef.current) return
-      const w = container.clientWidth
-      const h = container.clientHeight
+      if (!container || !rendererRef.current || !programRef.current) return
+      const w = container.clientWidth || window.innerWidth
+      const h = container.clientHeight || window.innerHeight
+      const dpr = Math.min(window.devicePixelRatio || 1, 2)
       rendererRef.current.setSize(w, h)
-      if (programRef.current) {
-        programRef.current.uniforms.iResolution.value = [
-          w * window.devicePixelRatio,
-          h * window.devicePixelRatio,
-          0,
-        ]
+
+      const aspect = w / h
+      const isPortrait = aspect < 1.0
+
+      programRef.current.uniforms.iResolution.value = [w * dpr, h * dpr, 0]
+      programRef.current.uniforms.uAspect.value = aspect
+
+      if (isPortrait) {
+        // Mobile portrait: ribbon safely anchored in lower third (below text)
+        programRef.current.uniforms.uDistance.value = 0.18
+        programRef.current.uniforms.uBaseY.value = 0.22
+        programRef.current.uniforms.uAmplitude.value = 0.8
+      } else {
+        // Desktop landscape: expansive ribbon across lower section
+        programRef.current.uniforms.uDistance.value = distance
+        programRef.current.uniforms.uBaseY.value = baseY
+        programRef.current.uniforms.uAmplitude.value = amplitude
       }
     }
 
     const resizeObserver = new ResizeObserver(resize)
     resizeObserver.observe(container)
+    window.addEventListener('resize', resize)
     resize()
 
-    function handleMouseMove(e: MouseEvent) {
-      if (!enableMouseInteraction || !container) return
-      const rect = container.getBoundingClientRect()
-      targetMouseRef.current = {
-        x: (e.clientX - rect.left) / rect.width,
-        y: 1.0 - (e.clientY - rect.top) / rect.height,
-      }
-    }
+    function handlePointer(e: PointerEvent | MouseEvent | TouchEvent) {
+      if (!enableMouseInteraction) return
+      let clientX = 0
+      let clientY = 0
 
-    function handleTouchMove(e: TouchEvent) {
-      if (!enableMouseInteraction || !container || !e.touches[0]) return
+      if ('touches' in e) {
+        if (e.touches.length === 0) return
+        clientX = e.touches[0].clientX
+        clientY = e.touches[0].clientY
+      } else {
+        clientX = (e as MouseEvent).clientX
+        clientY = (e as MouseEvent).clientY
+      }
+
       const rect = container.getBoundingClientRect()
       targetMouseRef.current = {
-        x: (e.touches[0].clientX - rect.left) / rect.width,
-        y: 1.0 - (e.touches[0].clientY - rect.top) / rect.height,
+        x: (clientX - rect.left) / rect.width,
+        y: 1.0 - (clientY - rect.top) / rect.height,
       }
     }
 
     if (enableMouseInteraction) {
-      window.addEventListener('mousemove', handleMouseMove)
-      window.addEventListener('touchmove', handleTouchMove, { passive: true })
+      window.addEventListener('pointermove', handlePointer, { passive: true })
+      window.addEventListener('pointerdown', handlePointer, { passive: true })
+      window.addEventListener('touchmove', handlePointer, { passive: true })
+      window.addEventListener('touchstart', handlePointer, { passive: true })
     }
 
     function animate(t: number) {
       animationRef.current = requestAnimationFrame(animate)
 
       if (enableMouseInteraction) {
-        mouseRef.current.x += (targetMouseRef.current.x - mouseRef.current.x) * 0.05
-        mouseRef.current.y += (targetMouseRef.current.y - mouseRef.current.y) * 0.05
+        mouseRef.current.x += (targetMouseRef.current.x - mouseRef.current.x) * 0.08
+        mouseRef.current.y += (targetMouseRef.current.y - mouseRef.current.y) * 0.08
       }
 
       if (programRef.current) {
@@ -235,9 +265,12 @@ export default function Threads({
     return () => {
       cancelAnimationFrame(animationRef.current)
       resizeObserver.disconnect()
+      window.removeEventListener('resize', resize)
       if (enableMouseInteraction) {
-        window.removeEventListener('mousemove', handleMouseMove)
-        window.removeEventListener('touchmove', handleTouchMove)
+        window.removeEventListener('pointermove', handlePointer)
+        window.removeEventListener('pointerdown', handlePointer)
+        window.removeEventListener('touchmove', handlePointer)
+        window.removeEventListener('touchstart', handlePointer)
       }
       if (container.contains(gl.canvas as HTMLElement)) {
         container.removeChild(gl.canvas as HTMLElement)

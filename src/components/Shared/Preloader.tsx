@@ -116,7 +116,7 @@ export default function Preloader({ onComplete }: PreloaderProps) {
           splitBy="chars"
           staggerDelay={0.03}
           duration={0.9}
-          className="text-white text-3xl sm:text-5xl md:text-7xl font-bold tracking-tight"
+          className="text-white text-2xl sm:text-4xl md:text-6xl font-bold tracking-tight px-2"
           charClassName="font-display tracking-[0.04em] text-white"
         />
 

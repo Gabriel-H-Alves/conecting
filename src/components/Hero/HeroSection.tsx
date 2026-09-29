@@ -1,14 +1,16 @@
 import { useRef, useEffect } from 'react'
 import gsap from 'gsap'
+import HeroWaves from './HeroWaves'
 
 interface HeroSectionProps {
   isLoaded?: boolean
 }
 
 /**
- * HeroSection — Minimal brutalist overlay on top of the Threads canvas.
- * Features mix-blend-mode: difference so that whenever the white threads
- * pass behind the text, the text dynamically inverts into a dark tone.
+ * HeroSection — Minimal brutalist overlay with self-contained 3D perspective waves.
+ * 
+ * The 3D waves are contained strictly inside this section and scroll naturally with the page.
+ * Features mix-blend-mode: difference for dark contrast inversion if waves ever pass behind text.
  */
 export default function HeroSection({ isLoaded = true }: HeroSectionProps) {
   const containerRef = useRef<HTMLElement>(null)
@@ -32,13 +34,13 @@ export default function HeroSection({ isLoaded = true }: HeroSectionProps) {
       // Letters cascade in
       tl.fromTo(
         lettersRef.current.filter(Boolean),
-        { y: 90, opacity: 0, rotateX: -65 },
+        { y: 80, opacity: 0, rotateX: -60 },
         {
           y: 0,
           opacity: 1,
           rotateX: 0,
-          duration: 1.3,
-          stagger: 0.04,
+          duration: 1.2,
+          stagger: 0.035,
         }
       )
 
@@ -47,8 +49,8 @@ export default function HeroSection({ isLoaded = true }: HeroSectionProps) {
         tl.fromTo(
           lineRef.current,
           { scaleX: 0 },
-          { scaleX: 1, duration: 0.8, ease: 'power3.inOut' },
-          '-=0.7'
+          { scaleX: 1, duration: 0.75, ease: 'power3.inOut' },
+          '-=0.65'
         )
       }
 
@@ -58,7 +60,7 @@ export default function HeroSection({ isLoaded = true }: HeroSectionProps) {
           taglineRef.current,
           { y: 15, opacity: 0 },
           { y: 0, opacity: 1, duration: 0.7 },
-          '-=0.4'
+          '-=0.35'
         )
       }
 
@@ -79,17 +81,19 @@ export default function HeroSection({ isLoaded = true }: HeroSectionProps) {
   return (
     <section
       ref={containerRef}
-      className="relative flex flex-col items-center justify-center min-h-screen select-none pointer-events-none"
-      style={{ zIndex: 10 }}
+      className="relative flex flex-col items-center justify-center min-h-[100dvh] px-4 select-none w-full overflow-hidden bg-black"
     >
-      {/* Brand Name — with mix-blend-mode difference for dark inversion over threads */}
+      {/* 3D Perspective Wave Ribbon — contained inside HeroSection, scrolls with page */}
+      <HeroWaves />
+
+      {/* Brand Name Typography */}
       <h1
-        className="relative flex items-center justify-center overflow-hidden"
+        className="relative z-10 flex items-center justify-center overflow-hidden max-w-full whitespace-nowrap pointer-events-none"
         style={{
           fontFamily: '"Bebas Neue", sans-serif',
-          fontSize: 'clamp(3.5rem, 15vw, 14rem)',
-          letterSpacing: '0.06em',
-          lineHeight: 1,
+          fontSize: 'clamp(2.75rem, 14.5vw, 14rem)',
+          letterSpacing: '0.04em',
+          lineHeight: 0.95,
           perspective: '600px',
           mixBlendMode: 'difference',
         }}
@@ -111,18 +115,18 @@ export default function HeroSection({ isLoaded = true }: HeroSectionProps) {
       {/* Divider */}
       <div
         ref={lineRef}
-        className="mt-4 h-[1px] bg-white/70 origin-left"
+        className="relative z-10 mt-3 sm:mt-4 h-[1px] bg-white/70 origin-left pointer-events-none"
         style={{
-          width: 'clamp(120px, 30vw, 400px)',
+          width: 'clamp(90px, 26vw, 380px)',
           transform: 'scaleX(0)',
           mixBlendMode: 'difference',
         }}
       />
 
-      {/* Single tagline — short, punchy */}
+      {/* Single tagline */}
       <p
         ref={taglineRef}
-        className="mt-5 text-white/75 tracking-[0.35em] uppercase text-[10px] md:text-xs"
+        className="relative z-10 mt-4 sm:mt-5 text-white/75 tracking-[0.25em] sm:tracking-[0.35em] uppercase text-[9px] sm:text-xs whitespace-nowrap text-center pointer-events-none"
         style={{
           fontFamily: '"Inter", sans-serif',
           opacity: 0,
@@ -135,10 +139,10 @@ export default function HeroSection({ isLoaded = true }: HeroSectionProps) {
       {/* Scroll indicator */}
       <div
         ref={scrollRef}
-        className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3"
+        className="relative z-10 absolute bottom-8 sm:bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 pointer-events-none"
         style={{ opacity: 0, mixBlendMode: 'difference' }}
       >
-        <div className="w-[1px] h-12 bg-gradient-to-b from-white/40 to-transparent animate-pulse" />
+        <div className="w-[1px] h-8 sm:h-12 bg-gradient-to-b from-white/40 to-transparent animate-pulse" />
       </div>
     </section>
   )

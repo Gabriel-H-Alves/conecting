@@ -17,9 +17,9 @@ interface StaggeredTextProps {
  * StaggeredText — High-performance staggered text reveal component.
  * Inspired by React Bits (reactbits.dev).
  * 
- * Splits string by characters (preserving spaces) or words,
- * with each token masked inside an overflow-hidden wrapper,
- * cascading into place with a buttery-smooth ease.
+ * Splits string with word grouping so words never wrap mid-token on mobile,
+ * with each letter/word masked inside an overflow-hidden wrapper,
+ * cascading into place with silky-smooth GSAP motion.
  */
 export default function StaggeredText({
   text,
@@ -70,7 +70,7 @@ export default function StaggeredText({
     return (
       <div
         ref={containerRef}
-        className={`inline-flex flex-wrap gap-[0.35em] ${className}`}
+        className={`inline-flex flex-wrap items-center justify-center gap-[0.35em] ${className}`}
         style={{ perspective: '800px' }}
       >
         {words.map((word, i) => (
@@ -92,36 +92,39 @@ export default function StaggeredText({
     )
   }
 
-  // Split by characters
-  const chars = text.split('')
+  // Split by characters with word-wrapping protection for mobile screens
+  const words = text.split(' ')
+  let globalCharIndex = 0
+
   return (
     <div
       ref={containerRef}
-      className={`inline-flex flex-wrap items-center justify-center ${className}`}
+      className={`inline-flex flex-wrap items-center justify-center gap-x-[0.3em] gap-y-[0.1em] ${className}`}
       style={{ perspective: '800px' }}
       aria-label={text}
     >
-      {chars.map((char, i) => {
-        if (char === ' ') {
-          return (
-            <span key={i} className="inline-block w-[0.25em]">
-              &nbsp;
-            </span>
-          )
-        }
+      {words.map((word, wIdx) => {
+        const wordChars = word.split('')
         return (
-          <span
-            key={i}
-            className="inline-block overflow-hidden pb-[0.08em] pt-[0.08em]"
-          >
-            <span
-              ref={(el) => {
-                tokensRef.current[i] = el
-              }}
-              className={`inline-block will-change-transform ${charClassName}`}
-            >
-              {char}
-            </span>
+          <span key={wIdx} className="inline-block whitespace-nowrap">
+            {wordChars.map((char, cIdx) => {
+              const tokenIdx = globalCharIndex++
+              return (
+                <span
+                  key={cIdx}
+                  className="inline-block overflow-hidden pb-[0.08em] pt-[0.08em]"
+                >
+                  <span
+                    ref={(el) => {
+                      tokensRef.current[tokenIdx] = el
+                    }}
+                    className={`inline-block will-change-transform ${charClassName}`}
+                  >
+                    {char}
+                  </span>
+                </span>
+              )
+            })}
           </span>
         )
       })}
