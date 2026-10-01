@@ -3,6 +3,7 @@ import { useLenis } from '@/hooks/useLenis'
 import Preloader from '@/components/Shared/Preloader'
 import HeroSection from '@/components/Hero/HeroSection'
 import ServicesSection from '@/components/Services/ServicesSection'
+import ProjectsSection from '@/components/Projects/ProjectsSection'
 
 export default function App() {
   const [isLoaded, setIsLoaded] = useState(false)
@@ -22,6 +23,7 @@ export default function App() {
       <main className="relative bg-black" style={{ zIndex: 1 }}>
         <HeroSection isLoaded={isLoaded} />
         <ServicesSection />
+        <ProjectsSection />
       </main>
     </>
   )

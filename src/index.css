@@ -103,3 +103,35 @@ html.lenis body {
   transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   will-change: transform;
 }
+
+/* ============================================
+   Projects Section — 3D Stage Styles
+   ============================================ */
+#projetos {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ============================================
+   Reduced Motion — Accessibility Override
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+
+  .line-reveal {
+    transform: scaleX(1);
+  }
+}
